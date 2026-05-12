@@ -1,0 +1,6 @@
+{
+  "name": "MoodFlow - AI Mental Health Journal",
+  "description": "A compassionate journal analyzer that tracks your emotions, identifies patterns, and provides personalized affirmations using Google Gemini AI.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": []
+}

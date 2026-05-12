@@ -1,0 +1,39 @@
+{
+  "entities": {
+    "Entry": {
+      "title": "Journal Entry",
+      "description": "A user's journal entry with AI analysis.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "date": { "type": "string", "format": "date" },
+        "text": { "type": "string" },
+        "timestamp": { "type": "number" },
+        "analysis": {
+          "type": "object",
+          "properties": {
+            "mood": { "type": "string" },
+            "moodScore": { "type": "number" },
+            "clarity": { "type": "number" },
+            "confidence": { "type": "number" },
+            "emotionalPatterns": { "type": "string" },
+            "affirmation": { "type": "string" },
+            "suggestions": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          },
+          "required": ["mood", "moodScore", "clarity", "confidence", "emotionalPatterns", "affirmation", "suggestions"]
+        }
+      },
+      "required": ["id", "userId", "date", "text", "timestamp", "analysis"]
+    }
+  },
+  "firestore": {
+    "/entries/{entryId}": {
+      "schema": "Entry",
+      "description": "User journal entries collection."
+    }
+  }
+}

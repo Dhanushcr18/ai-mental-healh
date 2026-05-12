@@ -1,0 +1,80 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // 0. Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Phase 3: Primitives
+    function isSignedIn() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+    
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Phase 4: Entity Validation
+    function isValidEntry(data) {
+      return data.keys().hasAll(['id', 'userId', 'date', 'text', 'timestamp', 'analysis']) 
+          && data.keys().size() == 6
+          && data.id is string && data.id.size() <= 128
+          && data.userId == request.auth.uid
+          && data.date is string && data.date.size() == 10
+          && data.text is string && data.text.size() <= 10000
+          && data.timestamp is timestamp
+          && data.analysis is map
+          && isValidAnalysis(data.analysis);
+    }
+
+    function isValidAnalysis(analysis) {
+      return analysis.keys().hasAll(['mood', 'moodScore', 'clarity', 'confidence', 'emotionalPatterns', 'affirmation', 'suggestions'])
+          && analysis.keys().size() == 7
+          && analysis.mood is string && analysis.mood.size() <= 50
+          && analysis.moodScore is number && analysis.moodScore >= 1 && analysis.moodScore <= 10
+          && analysis.clarity is number && analysis.clarity >= 1 && analysis.clarity <= 10
+          && analysis.confidence is number && analysis.confidence >= 1 && analysis.confidence <= 10
+          && analysis.emotionalPatterns is string && analysis.emotionalPatterns.size() <= 2000
+          && analysis.affirmation is string && analysis.affirmation.size() <= 1000
+          && analysis.suggestions is list && analysis.suggestions.size() == 3
+          && analysis.suggestions[0] is string && analysis.suggestions[0].size() <= 300;
+    }
+
+    // 1. Entries Collection
+    match /entries/{entryId} {
+      allow get: if isOwner(existing().userId);
+      allow list: if isOwner(resource.data.userId);
+      
+      allow create: if isSignedIn() 
+                    && isValidId(entryId)
+                    && entryId == incoming().id
+                    && isValidEntry(incoming())
+                    && incoming().timestamp == request.time; // Ensure server-side timestamp alignment
+      
+      allow update: if isOwner(existing().userId)
+                    && isValidEntry(incoming())
+                    && incoming().id == existing().id
+                    && incoming().userId == existing().userId
+                    && incoming().timestamp == existing().timestamp
+                    // Only allow updating text and analysis
+                    && incoming().diff(existing()).affectedKeys().hasOnly(['text', 'analysis', 'date']);
+      
+      allow delete: if isOwner(existing().userId);
+    }
+  }
+}
