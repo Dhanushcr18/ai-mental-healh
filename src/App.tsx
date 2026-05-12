@@ -108,14 +108,10 @@ export default function App() {
 
     try {
       const response = await ai.models.generateContent({
-        model: "gemini-1.5-flash",
-        contents: [
-          {
-            role: "user",
-            parts: [{ text: `Journal Entry Dated ${date}: ${journalText}` }]
-          }
-        ],
+        model: "gemini-3-flash-preview",
+        contents: `Journal Entry Dated ${date}: ${journalText}`,
         config: {
+          systemInstruction: "You are a compassionate mental health journal analyzer. Analyze the following entry and return a structured analysis of the user's mood, emotional patterns, and helpful suggestions.",
           responseMimeType: "application/json",
           responseSchema: {
             type: Type.OBJECT,
