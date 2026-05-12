@@ -24,9 +24,18 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
       if (user?.email) {
         onLogin(user.email);
       }
-    } catch (err) {
-      console.error(err);
-      setError("Sign in failed. Ensure you are using a verified account.");
+    } catch (err: any) {
+      console.error("Sign in error details:", err);
+      
+      if (err.code === 'auth/unauthorized-domain') {
+        setError(`Domain Unauthorized: Please add "${window.location.hostname}" to your Firebase Console -> Auth -> Settings -> Authorized Domains.`);
+      } else if (err.code === 'auth/popup-blocked') {
+        setError("Popup Blocked: Please allow popups for this site to sign in with Google.");
+      } else if (err.code === 'auth/operation-not-allowed') {
+        setError("Operation Not Allowed: Ensure Google Sign-In is enabled in your Firebase Console.");
+      } else {
+        setError(err.message || "Sign in failed. Ensure you are using a verified account.");
+      }
     } finally {
       setIsLoading(false);
     }
