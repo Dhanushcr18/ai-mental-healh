@@ -6,7 +6,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PenLine, History, Sparkles, BrainCircuit, LogOut, BarChart2, User as UserIcon, Sun, Moon } from 'lucide-react';
-import { GoogleGenAI, Type } from "@google/genai";
 import { JournalEntry, LocalUser, AnalysisResult } from './types';
 import JournalInput from './components/JournalInput';
 import MoodResult from './components/MoodResult';
@@ -15,6 +14,7 @@ import LoginPage from './components/LoginPage';
 import InsightsDashboard from './components/InsightsDashboard';
 import ProfileSection from './components/ProfileSection';
 import { storageService } from './services/storageService';
+import { LocalAnalysisService } from './services/localAnalysisService';
 
 export default function App() {
   const [user, setUser] = useState<LocalUser | null>(null);
@@ -81,47 +81,8 @@ export default function App() {
     setAnalysisResult(null);
 
     try {
-      // Initialize Gemini
-      // Note: In AI Studio, GEMINI_API_KEY is available. 
-      // For Vercel deployments, use VITE_GEMINI_API_KEY as per standard Vite patterns.
-      const apiKey = (typeof process !== 'undefined' ? process.env.GEMINI_API_KEY : '') || import.meta.env.VITE_GEMINI_API_KEY;
-      
-      if (!apiKey) {
-        throw new Error("API_KEY_MISSING");
-      }
-
-      const ai = new GoogleGenAI({ apiKey });
-      
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: `Journal Entry Dated ${date}: ${journalText}`,
-        config: {
-          systemInstruction: "You are a compassionate mental health journal analyzer. Analyze the entry and return a structured analysis of the user's mood, emotional patterns, and helpful suggestions.",
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              mood: { type: Type.STRING },
-              moodScore: { type: Type.NUMBER },
-              clarity: { type: Type.NUMBER },
-              confidence: { type: Type.NUMBER },
-              emotionalPatterns: { type: Type.STRING },
-              affirmation: { type: Type.STRING },
-              suggestions: { 
-                type: Type.ARRAY, 
-                items: { type: Type.STRING }
-              },
-            },
-            required: ["mood", "moodScore", "clarity", "confidence", "emotionalPatterns", "affirmation", "suggestions"]
-          },
-        }
-      });
-
-      if (!response || !response.text) {
-        throw new Error("Empty response from AI");
-      }
-
-      const analysis = JSON.parse(response.text);
+      // Use local sentiment analysis (no API required)
+      const analysis = LocalAnalysisService.analyzeEntry(journalText);
       setAnalysisResult(analysis);
 
       // Save locally
@@ -137,20 +98,8 @@ export default function App() {
       
       setJournalText('');
     } catch (err: any) {
-      console.error("AI analysis error:", err);
-      let errorMessage = "AI analysis unavailable. Please try again later.";
-      
-      if (err.message === "API_KEY_MISSING") {
-        errorMessage = "Gemini API Key missing. Please add VITE_GEMINI_API_KEY to your Vercel Environment Variables.";
-      } else if (err.message && (err.message.includes('API key not valid') || err.message.includes('400'))) {
-        errorMessage = "Invalid Gemini API Key. Please check your key in Vercel settings and ensure it is copied correctly from ai.google.dev.";
-      } else if (err.message && err.message.includes('404')) {
-        errorMessage = "AI Model not found. This might be a temporary service issue or region restriction.";
-      } else {
-        errorMessage = `AI analysis error: ${err.message || 'Unknown error'}`;
-      }
-      
-      setError(errorMessage);
+      console.error("Analysis error:", err);
+      setError("Unable to analyze entry. Please try again.");
     } finally {
       setIsLoading(false);
     }
