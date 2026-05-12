@@ -6,7 +6,7 @@
 import { useState, useRef, ChangeEvent } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { User as UserIcon, Mail, Camera, Upload, Check, X, ShieldCheck } from 'lucide-react';
-import { LocalUser } from '../App';
+import { LocalUser } from '../types';
 
 interface ProfileSectionProps {
   user: LocalUser;

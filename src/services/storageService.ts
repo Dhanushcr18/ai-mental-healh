@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { JournalEntry } from '../App';
+import { JournalEntry } from '../types';
 
 const ENTRIES_KEY = 'moodflow_entries';
 const USER_KEY = 'moodflow_user';

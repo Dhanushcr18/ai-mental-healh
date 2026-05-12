@@ -7,6 +7,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PenLine, History, Sparkles, BrainCircuit, LogOut, BarChart2, User as UserIcon, Sun, Moon } from 'lucide-react';
 import { GoogleGenAI, Type } from "@google/genai";
+import { JournalEntry, LocalUser, AnalysisResult } from './types';
 import JournalInput from './components/JournalInput';
 import MoodResult from './components/MoodResult';
 import HistoryList from './components/HistoryList';
@@ -14,30 +15,6 @@ import LoginPage from './components/LoginPage';
 import InsightsDashboard from './components/InsightsDashboard';
 import ProfileSection from './components/ProfileSection';
 import { storageService } from './services/storageService';
-
-// Types
-export interface AnalysisResult {
-  mood: string;
-  moodScore: number;
-  clarity: number;
-  confidence: number;
-  emotionalPatterns: string;
-  affirmation: string;
-  suggestions: string[];
-}
-
-export interface JournalEntry {
-  id: string;
-  date: string;
-  text: string;
-  analysis: AnalysisResult;
-}
-
-export interface LocalUser {
-  email: string;
-  displayName?: string;
-  photoURL?: string;
-}
 
 export default function App() {
   const [user, setUser] = useState<LocalUser | null>(null);
@@ -78,9 +55,6 @@ export default function App() {
     }
   }, []);
 
-  // Initialize Gemini
-  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
-
   const handleLogout = () => {
     storageService.clearUser();
     setUser(null);
@@ -107,8 +81,11 @@ export default function App() {
     setAnalysisResult(null);
 
     try {
+      // Initialize Gemini inside handleSubmit to ensure fresh API key
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
+      const modelName = "gemini-3-flash-preview";
       const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
+        model: modelName,
         contents: `Journal Entry Dated ${date}: ${journalText}`,
         config: {
           systemInstruction: "You are a compassionate mental health journal analyzer. Analyze the following entry and return a structured analysis of the user's mood, emotional patterns, and helpful suggestions.",
@@ -132,7 +109,11 @@ export default function App() {
         }
       });
 
-      const result = JSON.parse(response.text || '{}');
+      if (!response || !response.text) {
+        throw new Error("Empty response from AI");
+      }
+
+      const result = JSON.parse(response.text);
       setAnalysisResult(result);
 
       // Save locally
@@ -147,9 +128,16 @@ export default function App() {
       setEntries(updatedEntries);
       
       setJournalText('');
-    } catch (err) {
-      console.error(err);
-      setError("AI analysis unavailable. Please check your connection and try again.");
+    } catch (err: any) {
+      console.error("AI analysis error:", err);
+      if (err.message && err.message.includes('API_KEY_INVALID')) {
+        setError("Invalid API Key. Please check your Vercel environment variables.");
+      } else if (err.status === 404) {
+        setError("AI model not found. Retrying with alternative model...");
+        // Optionally try a fallback model here
+      } else {
+        setError("AI analysis unavailable. Please check your console for details.");
+      }
     } finally {
       setIsLoading(false);
     }
