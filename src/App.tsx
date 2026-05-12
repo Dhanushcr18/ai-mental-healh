@@ -7,34 +7,16 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PenLine, History, Sparkles, BrainCircuit, LogOut, BarChart2, User as UserIcon, Sun, Moon } from 'lucide-react';
 import { GoogleGenAI, Type } from "@google/genai";
-import { 
-  onAuthStateChanged, 
-  signOut,
-  User
-} from 'firebase/auth';
-import { 
-  collection, 
-  addDoc, 
-  setDoc,
-  query, 
-  where, 
-  orderBy, 
-  onSnapshot, 
-  deleteDoc, 
-  doc,
-  serverTimestamp 
-} from 'firebase/firestore';
-
-import { auth, db, testConnection } from './lib/firebase';
 import JournalInput from './components/JournalInput';
 import MoodResult from './components/MoodResult';
 import HistoryList from './components/HistoryList';
 import LoginPage from './components/LoginPage';
 import InsightsDashboard from './components/InsightsDashboard';
 import ProfileSection from './components/ProfileSection';
+import { storageService } from './services/storageService';
 
 // Types
-interface AnalysisResult {
+export interface AnalysisResult {
   mood: string;
   moodScore: number;
   clarity: number;
@@ -44,52 +26,21 @@ interface AnalysisResult {
   suggestions: string[];
 }
 
-interface JournalEntry {
+export interface JournalEntry {
   id: string;
-  userId: string;
   date: string;
   text: string;
   analysis: AnalysisResult;
-  timestamp: number;
 }
 
-enum OperationType {
-  CREATE = 'create',
-  UPDATE = 'update',
-  DELETE = 'delete',
-  LIST = 'list',
-  GET = 'get',
-  WRITE = 'write',
-}
-
-interface FirestoreErrorInfo {
-  error: string;
-  operationType: OperationType;
-  path: string | null;
-  authInfo: {
-    userId?: string | null;
-    email?: string | null;
-    emailVerified?: boolean | null;
-  }
-}
-
-function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
-  const errInfo: FirestoreErrorInfo = {
-    error: error instanceof Error ? error.message : String(error),
-    authInfo: {
-      userId: auth.currentUser?.uid,
-      email: auth.currentUser?.email,
-      emailVerified: auth.currentUser?.emailVerified,
-    },
-    operationType,
-    path
-  };
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
+export interface LocalUser {
+  email: string;
+  displayName?: string;
+  photoURL?: string;
 }
 
 export default function App() {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<LocalUser | null>(null);
   const [activeTab, setActiveTab] = useState<'write' | 'history' | 'insights' | 'profile'>('write');
   const [journalText, setJournalText] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
@@ -118,60 +69,34 @@ export default function App() {
     }
   }, [isDarkMode]);
 
+  // Load User and Entries on Mount
+  useEffect(() => {
+    const savedUser = storageService.getUser();
+    if (savedUser) {
+      setUser(savedUser);
+      setEntries(storageService.getEntries());
+    }
+  }, []);
+
   // Initialize Gemini
   const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
 
-  // Handle Auth State
-  useEffect(() => {
-    testConnection();
-    const unsubscribe = onAuthStateChanged(auth, (u) => {
-      setUser(u);
-    });
-    return () => unsubscribe();
-  }, []);
-
-  // Sync Entries with Firestore
-  useEffect(() => {
-    if (!user) {
-      setEntries([]);
-      return;
-    }
-
-    const path = 'entries';
-    const q = query(
-      collection(db, path),
-      where('userId', '==', user.uid),
-      orderBy('timestamp', 'desc')
-    );
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map(doc => ({
-        ...doc.data({ serverTimestamps: 'estimate' }),
-        id: doc.id
-      })) as JournalEntry[];
-      setEntries(data);
-    }, (err) => {
-      handleFirestoreError(err, OperationType.LIST, path);
-    });
-
-    return () => unsubscribe();
-  }, [user]);
-
-  const handleLogout = async () => {
-    try {
-      await signOut(auth);
-    } catch (err) {
-      console.error("Sign out failed", err);
-    }
+  const handleLogout = () => {
+    storageService.clearUser();
+    setUser(null);
+    setEntries([]);
   };
 
-  const deleteEntry = async (id: string) => {
-    const path = `entries/${id}`;
-    try {
-      await deleteDoc(doc(db, 'entries', id));
-    } catch (err) {
-      handleFirestoreError(err, OperationType.DELETE, path);
-    }
+  const deleteEntry = (id: string) => {
+    const updated = storageService.deleteEntry(id);
+    setEntries(updated);
+  };
+
+  const handleUpdateProfile = (updatedUser: Partial<LocalUser>) => {
+    if (!user) return;
+    const newUser = { ...user, ...updatedUser };
+    storageService.saveUser(newUser);
+    setUser(newUser);
   };
 
   const handleSubmit = async () => {
@@ -183,7 +108,7 @@ export default function App() {
 
     try {
       const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
+        model: "gemini-1.5-flash",
         contents: [
           {
             role: "user",
@@ -191,21 +116,19 @@ export default function App() {
           }
         ],
         config: {
-          systemInstruction: "You are a compassionate mental health journal analyzer. Analyze the following entry and return a structured analysis of the user's mood, emotional patterns, and helpful suggestions.",
           responseMimeType: "application/json",
           responseSchema: {
             type: Type.OBJECT,
             properties: {
-              mood: { type: Type.STRING, description: "One word describing the primary mood." },
-              moodScore: { type: Type.NUMBER, description: "Score from 1 to 10." },
-              clarity: { type: Type.NUMBER, description: "Mental clarity score from 1 to 10." },
-              confidence: { type: Type.NUMBER, description: "Confidence/Self-esteem score from 1 to 10." },
-              emotionalPatterns: { type: Type.STRING, description: "2-3 sentences describing detected emotional patterns." },
-              affirmation: { type: Type.STRING, description: "A warm, personalized affirmation." },
+              mood: { type: Type.STRING },
+              moodScore: { type: Type.NUMBER },
+              clarity: { type: Type.NUMBER },
+              confidence: { type: Type.NUMBER },
+              emotionalPatterns: { type: Type.STRING },
+              affirmation: { type: Type.STRING },
               suggestions: { 
                 type: Type.ARRAY, 
-                items: { type: Type.STRING },
-                description: "3 actionable mindful suggestions."
+                items: { type: Type.STRING }
               },
             },
             required: ["mood", "moodScore", "clarity", "confidence", "emotionalPatterns", "affirmation", "suggestions"]
@@ -216,26 +139,18 @@ export default function App() {
       const result = JSON.parse(response.text || '{}');
       setAnalysisResult(result);
 
-      // Save to Firestore
-      const path = 'entries';
-      try {
-        const docRef = doc(collection(db, path));
-        await setDoc(docRef, {
-          id: docRef.id,
-          userId: user.uid,
-          date,
-          text: journalText,
-          analysis: result,
-          timestamp: serverTimestamp()
-        });
-        
-        // Clear the form after successful save
-        setJournalText('');
-        // Keep analysis result visible if you want, or clear it
-        // setAnalysisResult(null); 
-      } catch (err) {
-        handleFirestoreError(err, OperationType.CREATE, path);
-      }
+      // Save locally
+      const newEntry: JournalEntry = {
+        id: crypto.randomUUID(),
+        date,
+        text: journalText,
+        analysis: result
+      };
+      
+      const updatedEntries = storageService.saveEntry(newEntry);
+      setEntries(updatedEntries);
+      
+      setJournalText('');
     } catch (err) {
       console.error(err);
       setError("AI analysis unavailable. Please check your connection and try again.");
@@ -245,7 +160,12 @@ export default function App() {
   };
 
   if (!user) {
-    return <LoginPage onLogin={() => {}} />; // Login handled by Firebase onSnapshot
+    return <LoginPage onLogin={(email, name) => {
+      const newUser = { email, displayName: name };
+      setUser(newUser);
+      storageService.saveUser(newUser);
+      setEntries(storageService.getEntries());
+    }} />;
   }
 
   return (
@@ -448,7 +368,7 @@ export default function App() {
                 </div>
               </div>
               
-              <ProfileSection user={user} />
+              <ProfileSection user={user} onUpdate={handleUpdateProfile} />
             </motion.div>
           )}
         </AnimatePresence>

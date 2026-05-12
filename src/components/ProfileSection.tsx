@@ -6,13 +6,14 @@
 import { useState, useRef, ChangeEvent } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { User as UserIcon, Mail, Camera, Upload, Check, X, ShieldCheck } from 'lucide-react';
-import { User, updateProfile } from 'firebase/auth';
+import { LocalUser } from '../App';
 
 interface ProfileSectionProps {
-  user: User;
+  user: LocalUser;
+  onUpdate: (updated: Partial<LocalUser>) => void;
 }
 
-export default function ProfileSection({ user }: ProfileSectionProps) {
+export default function ProfileSection({ user, onUpdate }: ProfileSectionProps) {
   const [isUpdating, setIsUpdating] = useState(false);
   const [showCamera, setShowCamera] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
@@ -70,12 +71,7 @@ export default function ProfileSection({ user }: ProfileSectionProps) {
 
     setIsUpdating(true);
     try {
-      // NOTE: In a real app, you'd upload this to Firebase Storage first 
-      // and get a permanent URL. For this demo, we're using the data URL 
-      // directly in the profile, which works for local persistence in Auth.
-      await updateProfile(user, {
-        photoURL: previewImage
-      });
+      onUpdate({ photoURL: previewImage });
       setPreviewImage(null);
       // Force a slight delay for dramatic effect
       setTimeout(() => setIsUpdating(false), 1000);
@@ -144,9 +140,9 @@ export default function ProfileSection({ user }: ProfileSectionProps) {
                   <ShieldCheck className="w-4 h-4 text-slate-400 group-hover:text-[#1D9E75]" />
                 </div>
                 <div>
-                  <div className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Member Since</div>
+                  <div className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Status</div>
                   <div className="text-sm font-bold text-slate-600 dark:text-slate-300">
-                    {user.metadata.creationTime ? new Date(user.metadata.creationTime).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : 'Recently'}
+                    Active
                   </div>
                 </div>
               </div>

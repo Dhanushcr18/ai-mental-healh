@@ -3,42 +3,36 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState } from 'react';
-import { motion } from 'motion/react';
-import { BrainCircuit, LogIn, ArrowRight, Sparkles } from 'lucide-react';
-import { signInWithGoogle } from '../lib/firebase';
+import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+import { BrainCircuit, LogIn, Sparkles, Mail, Lock, UserPlus, UserCircle } from 'lucide-react';
 
 interface LoginPageProps {
-  onLogin: (email: string) => void;
+  onLogin: (email: string, name: string) => void;
 }
 
 export default function LoginPage({ onLogin }: LoginPageProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [mode, setMode] = useState<'login' | 'signup'>('login');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [displayName, setDisplayName] = useState('');
 
-  const handleSignIn = async () => {
+  const handleAuth = (e: React.FormEvent) => {
+    e.preventDefault();
     setIsLoading(true);
     setError(null);
-    try {
-      const user = await signInWithGoogle();
-      if (user?.email) {
-        onLogin(user.email);
-      }
-    } catch (err: any) {
-      console.error("Sign in error details:", err);
-      
-      if (err.code === 'auth/unauthorized-domain') {
-        setError(`Domain Unauthorized: Please add "${window.location.hostname}" to your Firebase Console -> Auth -> Settings -> Authorized Domains.`);
-      } else if (err.code === 'auth/popup-blocked') {
-        setError("Popup Blocked: Please allow popups for this site to sign in with Google.");
-      } else if (err.code === 'auth/operation-not-allowed') {
-        setError("Operation Not Allowed: Ensure Google Sign-In is enabled in your Firebase Console.");
+    
+    // Simulate a short delay
+    setTimeout(() => {
+      if (email && password) {
+        onLogin(email, mode === 'signup' ? (displayName || email.split('@')[0]) : (displayName || email.split('@')[0]));
       } else {
-        setError(err.message || "Sign in failed. Ensure you are using a verified account.");
+        setError("Please enter your credentials.");
       }
-    } finally {
       setIsLoading(false);
-    }
+    }, 800);
   };
 
   return (
@@ -67,31 +61,96 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
           <p className="text-slate-500 dark:text-slate-400 font-medium italic">Your emotional sanctuary awaits.</p>
         </div>
 
-        <div className="glass p-10 rounded-[2.5rem]">
+        <div className="glass p-8 md:p-10 rounded-[2.5rem]">
           <div className="mb-8">
-            <h2 className="text-2xl font-bold text-[#0f4a38] dark:text-teal-400">Welcome</h2>
-            <p className="text-slate-400 dark:text-slate-500 text-sm font-medium uppercase tracking-widest mt-1">Access your private space</p>
+            <h2 className="text-2xl font-bold text-[#0f4a38] dark:text-teal-400">
+              {mode === 'login' ? 'Welcome Back' : 'Create Sanctuary'}
+            </h2>
+            <p className="text-slate-400 dark:text-slate-500 text-sm font-medium uppercase tracking-widest mt-1">
+              {mode === 'login' ? 'Access your private space' : 'Start your journey of reflection'}
+            </p>
           </div>
 
-          <div className="space-y-6">
+          <form onSubmit={handleAuth} className="space-y-4">
+            <AnimatePresence mode="wait">
+              {mode === 'signup' && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="relative group"
+                >
+                  <UserCircle className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-[#1D9E75] transition-colors" />
+                  <input
+                    type="text"
+                    required
+                    placeholder="Your Name"
+                    value={displayName}
+                    onChange={(e) => setDisplayName(e.target.value)}
+                    className="w-full pl-12 pr-4 py-4 bg-white/40 dark:bg-slate-800/40 border border-white/50 dark:border-slate-700/50 backdrop-blur-sm rounded-2xl text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-[#1D9E75]/20 focus:border-[#1D9E75] transition-all"
+                  />
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            <div className="relative group">
+              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-[#1D9E75] transition-colors" />
+              <input
+                type="email"
+                required
+                placeholder="Email Address"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full pl-12 pr-4 py-4 bg-white/40 dark:bg-slate-800/40 border border-white/50 dark:border-slate-700/50 backdrop-blur-sm rounded-2xl text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-[#1D9E75]/20 focus:border-[#1D9E75] transition-all"
+              />
+            </div>
+
+            <div className="relative group">
+              <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-[#1D9E75] transition-colors" />
+              <input
+                type="password"
+                required
+                placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full pl-12 pr-4 py-4 bg-white/40 dark:bg-slate-800/40 border border-white/50 dark:border-slate-700/50 backdrop-blur-sm rounded-2xl text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-[#1D9E75]/20 focus:border-[#1D9E75] transition-all"
+              />
+            </div>
+
+            {error && (
+              <motion.p 
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="text-red-500 text-xs font-bold text-center py-2"
+              >
+                {error}
+              </motion.p>
+            )}
+
             <button
-              onClick={handleSignIn}
+              type="submit"
               disabled={isLoading}
-              className="w-full py-5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 rounded-2xl font-bold text-sm uppercase tracking-wider shadow-lg hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-all transform active:scale-95 flex items-center justify-center gap-3"
+              className="w-full py-5 bg-[#1D9E75] text-white rounded-2xl font-bold text-sm uppercase tracking-wider shadow-lg shadow-teal-500/20 hover:bg-[#15805d] transition-all transform active:scale-95 flex items-center justify-center gap-3 disabled:opacity-50"
             >
               {isLoading ? (
-                <div className="w-5 h-5 border-2 border-[#1D9E75]/30 border-t-[#1D9E75] rounded-full animate-spin" />
+                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
               ) : (
                 <>
-                  <LogIn className="w-5 h-5 text-[#1D9E75]" />
-                  Sign in with Google
+                  {mode === 'login' ? <LogIn className="w-5 h-5" /> : <UserPlus className="w-5 h-5" />}
+                  {mode === 'login' ? 'Sign In' : 'Create Account'}
                 </>
               )}
             </button>
 
-            {error && (
-              <p className="text-red-500 text-xs font-bold text-center mt-2">{error}</p>
-            )}
+            <div className="pt-4 text-center">
+              <button
+                type="button"
+                onClick={() => setMode(mode === 'login' ? 'signup' : 'login')}
+                className="text-xs font-black text-[#1D9E75] uppercase tracking-widest hover:underline cursor-pointer"
+              >
+                {mode === 'login' ? "Don't have an account? Sign Up" : "Already have an account? Sign In"}
+              </button>
+            </div>
             
             <div className="flex items-center gap-3 pt-4">
               <div className="h-px bg-slate-200 dark:bg-slate-800 flex-1" />
@@ -100,9 +159,9 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
             </div>
 
             <p className="text-slate-500 dark:text-slate-400 text-xs text-center leading-relaxed px-4">
-              Connect your account securely. Your reflections are protected and only accessible by you.
+              Your reflections are encrypted and only accessible by you. Your solitude is sacred.
             </p>
-          </div>
+          </form>
 
           <div className="mt-8 pt-8 border-t border-slate-100/50 dark:border-slate-800/50 text-center">
             <div className="text-xs font-bold text-[#1D9E75] flex items-center justify-center gap-2 mx-auto uppercase tracking-widest">
